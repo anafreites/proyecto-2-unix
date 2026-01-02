@@ -1,0 +1,6 @@
+home
+home/Documents
+home/Documents/documento.txt
+home/Music
+home/Music/cancion.txt
+home/Downloads
