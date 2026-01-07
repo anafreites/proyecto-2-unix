@@ -25,13 +25,17 @@ bool existingNode(Node *p, string name) {
 }
 
 //buscar un nodo por su nombre
-Node* searchNode(Node *p, string nombre) {
-    if (!p) return NULL;
-    if (p->nombre == nombre) return p;
+Node* searchNode(Node* directorio, const string& nombre) {
+    if (!directorio || directorio->esArchivo) return NULL;
     
-    Node *encontrado = searchNode(p->hijoIzq, nombre);
-    if (encontrado) return encontrado;
-    return searchNode(p->hermanoDer, nombre);
+    Node* hijo = directorio->hijoIzq;
+    while (hijo) {
+        if (hijo->nombre == nombre) {
+            return hijo;
+        }
+        hijo = hijo->hermanoDer;
+    }
+    return NULL;
 }
 
 //verificar si es un archivo (tiene extension .txt)
@@ -47,95 +51,127 @@ bool verifArchivo(string nombre){
 
 //crear un nuevo nodo (archivo o carpeta)
 bool createNode(Node **p, string name, bool esArchivo, Node *padre = NULL){
-    Node* nuevo = new Node;
-    if (!nuevo) return false;
-    nuevo->nombre = name;
-    nuevo->esArchivo = esArchivo;
-    nuevo->contenido = "";
-    nuevo->hijoIzq = NULL;
-    nuevo->hermanoDer = NULL;
-    nuevo->padre = padre;
-
-    if (*p == NULL) *p = nuevo;
-    else {
-        if (existingNode(*p, name) || verifArchivo((*p)->nombre)) return false;
-        else {
-            Node *aux = *p;
-            if (aux->hijoIzq == NULL) aux->hijoIzq = nuevo;
-            else {
-                Node *ultHermano = aux->hijoIzq;
-                while(ultHermano->hermanoDer != NULL){
-                    ultHermano = ultHermano->hermanoDer;
-                }
-                ultHermano->hermanoDer = nuevo;
-            }
-        }
+    if (!p) return false;
+    
+    //si estamos creando la raiz
+    if (*p == NULL) {
+        Node* nuevo = new Node;
+        nuevo->nombre = name;
+        nuevo->esArchivo = esArchivo;
+        nuevo->contenido = "";
+        nuevo->hijoIzq = NULL;
+        nuevo->hermanoDer = NULL;
+        nuevo->padre = NULL;
+        *p = nuevo;
+        return true;
     }
-    return true;
+    //si estamos agregando a un directorio existente
+    else {
+        //verificar si ya existe un hijo con ese nombre
+        if (existingNode(*p, name)) return false;
+        
+        //verificar que el padre no sea un archivo
+        if ((*p)->esArchivo) return false;
+        
+        Node* nuevo = new Node;
+        nuevo->nombre = name;
+        nuevo->esArchivo = esArchivo;
+        nuevo->contenido = "";
+        nuevo->hijoIzq = NULL;
+        nuevo->hermanoDer = NULL;
+        nuevo->padre = *p;  //el directorio actual es el padre
+        
+        //agregar al inicio de la lista de hijos
+        nuevo->hermanoDer = (*p)->hijoIzq;
+        (*p)->hijoIzq = nuevo;
+        
+        return true;
+    }
 }
 
-//cmanejo del archivo .txt
-void archivo(Node **p) {
-    ifstream arch("file_explorer.txt");
-    string linea;
-
+//manejo del archivo .txt
+void cargarDesdeArchivo(Node** raiz, const string& nombreArchivo = "file_explorer.txt") {
+    ifstream arch(nombreArchivo);
     if (!arch) {
-        cout << "ERROR: El archivo no existe o no se pudo abrir correctamente." << endl;
+        cerr << "ERROR: No se pudo abrir '" << nombreArchivo << "'" << endl;
         return;
     }
-
+    
+    string linea;
     while (getline(arch, linea)) {
-        Node *aux = *p;
-        int inicio = 0;
-        int fin;
-
-        int separadorContenido = linea.find("//");
-        bool tieneContenido = false;
-        string lineaSinContenido;
-        
-        if (separadorContenido != string::npos) {
-            tieneContenido = true;
-            lineaSinContenido = linea.substr(0, separadorContenido);
+        if (linea.empty()) continue;
+        //manejar contenido después de "//"
+        string ruta, contenido;
+        size_t sep = linea.find("//");
+        if (sep != string::npos) {
+            ruta = linea.substr(0, sep);
+            contenido = linea.substr(sep + 2);
         } else {
-            lineaSinContenido = linea;
+            ruta = linea;
+            contenido = "";
         }
-
-        while ((fin = lineaSinContenido.find('/', inicio)) != string::npos) {
-            string parte = lineaSinContenido.substr(inicio, fin - inicio);
-            Node *nodoExistente = NULL;
-            if (aux) {
-                nodoExistente = searchNode(aux, parte);
-            }
-            if (!nodoExistente) {
-                if (aux) {
-                    createNode(&aux, parte, false, aux);
-                    nodoExistente = searchNode(aux, parte);
-                } else {
-                    createNode(p, parte, false);
-                    nodoExistente = searchNode(*p, parte);
+        
+        //procesar la ruta
+        Node* actual = *raiz;
+        size_t inicio = 0;
+        size_t fin;
+        
+        //procesar cada parte de la ruta
+        while ((fin = ruta.find('/', inicio)) != string::npos) {
+            string dir = ruta.substr(inicio, fin - inicio);
+            if (!dir.empty()) {
+                //buscar si ya existe este directorio
+                Node* hijo = actual->hijoIzq;
+                Node* dirExistente = NULL;
+                while (hijo) {
+                    if (hijo->nombre == dir && !hijo->esArchivo) {
+                        dirExistente = hijo;
+                        break;
+                    }
+                    hijo = hijo->hermanoDer;
                 }
+                
+                if (!dirExistente) {
+                    //crear nuevo directorio
+                    Node* nuevoDir = new Node;
+                    nuevoDir->nombre = dir;
+                    nuevoDir->esArchivo = false;
+                    nuevoDir->contenido = "";
+                    nuevoDir->hijoIzq = NULL;
+                    nuevoDir->hermanoDer = actual->hijoIzq;
+                    nuevoDir->padre = actual;
+                    actual->hijoIzq = nuevoDir;
+                    dirExistente = nuevoDir;
+                }
+                
+                actual = dirExistente;
             }
-            aux = nodoExistente;
             inicio = fin + 1;
         }
-
-        string ultparte = lineaSinContenido.substr(inicio);
-        if (!ultparte.empty()) { 
-            bool esArchivo = verifArchivo(ultparte);
-            if (!aux) {
-                createNode(p, ultparte, esArchivo);
-                if (esArchivo && tieneContenido) {
-                    Node* nuevoArchivo = searchNode(*p, ultparte);
-                    if (nuevoArchivo) nuevoArchivo->contenido = linea.substr(separadorContenido + 2);
+        
+        //ultima parte (puede ser archivo o directorio)
+        string nombreFinal = ruta.substr(inicio);
+        if (!nombreFinal.empty()) {
+            //verificar si ya existe
+            Node* hijo = actual->hijoIzq;
+            bool existe = false;
+            while (hijo) {
+                if (hijo->nombre == nombreFinal) {
+                    existe = true;
+                    break;
                 }
-            } else if (aux->esArchivo) {
-                cout << "\tERROR: No se pueden crear archivos dentro de otros archivos." << endl;
-            } else {
-                createNode(&aux, ultparte, esArchivo, aux);
-                if (esArchivo && tieneContenido) {
-                    Node* nuevoArchivo = searchNode(aux, ultparte);
-                    if (nuevoArchivo) nuevoArchivo->contenido = linea.substr(separadorContenido + 2);
-                }
+                hijo = hijo->hermanoDer;
+            }
+            
+            if (!existe) {
+                Node* nuevo = new Node;
+                nuevo->nombre = nombreFinal;
+                nuevo->esArchivo = verifArchivo(nombreFinal);
+                nuevo->contenido = (nuevo->esArchivo) ? contenido : "";
+                nuevo->hijoIzq = NULL;
+                nuevo->hermanoDer = actual->hijoIzq;
+                nuevo->padre = actual;
+                actual->hijoIzq = nuevo;
             }
         }
     }
@@ -360,41 +396,122 @@ void touch(Node* actual, const string& nombre) {
 }
 
 //mover un archivo o carpeta a otro directorio
-void mv(Node* actual, const string& nombreActual, const string& nombreNuevo) {
+void mv(Node* actual, const string& origen, const string& destino) {
     if (!actual) {
         cout << "--- ERROR: Directorio actual no válido. ---" << endl;
         return;
     }
-
-    Node* nodoARenombrar = NULL;
-    Node* prev = NULL;
+    //buscar el origen del directorio
+    Node* nodoOrigen = NULL;
+    Node* prevOrigen = NULL;
     Node* curr = actual->hijoIzq;
-
+    
     while (curr) {
-        if (curr->nombre == nombreActual) {
-            nodoARenombrar = curr;
+        if (curr->nombre == origen) {
+            nodoOrigen = curr;
             break;
         }
-        prev = curr;
+        prevOrigen = curr;
         curr = curr->hermanoDer;
     }
-    if (!nodoARenombrar) {
-        cout << "--- ERROR: '" << nombreActual << "' no existe en el directorio actual. ---" << endl;
+    
+    if (!nodoOrigen) {
+        cout << "--- ERROR: '" << origen << "' no encontrado en el directorio actual. ---" << endl;
         return;
     }
-    if (existingNode(actual, nombreNuevo)) {
-        cout << "--- ERROR: '" << nombreNuevo << "' ya existe en el directorio actual. ---" << endl;
+    
+    //buscar el directorio destino
+    Node* destinoDir = NULL;
+    
+    //verficar si es el directorio padre
+    if (destino == "..") {
+        if (actual->padre) {
+            destinoDir = actual->padre;
+        } else {
+            cout << "--- ERROR: No hay directorio padre. ---" << endl;
+            return;
+        }
+    }
+    //si es el mismo directorio lo renombramos
+    else if (destino == ".") {
+        cout << "--- ERROR: Use 'mv <viejo> <nuevo>' para renombrar. ---" << endl;
         return;
     }
-
-    nodoARenombrar->nombre = nombreNuevo;
-    cout << "-- Renombrado: '" << nombreActual << "' -> '" << nombreNuevo << "' ---" << endl;
+    //verificamos si el destino existe como directorio
+    else {
+        //buscamos en los hijos del directorio actual
+        Node* temp = actual->hijoIzq;
+        while (temp) {
+            if (temp->nombre == destino && !temp->esArchivo) {
+                destinoDir = temp;
+                break;
+            }
+            temp = temp->hermanoDer;
+        }
+        
+        //si no lo encontramos, verificamos si es una ruta absoluta o relativa
+        if (!destinoDir && destino.find('/') != string::npos) {
+            Node* tempRaiz = actual;
+            while (tempRaiz->padre) tempRaiz = tempRaiz->padre;
+            destinoDir = cd(actual, tempRaiz, destino);
+            if (destinoDir && destinoDir->esArchivo) {
+                cout << "--- ERROR: El destino no puede ser un archivo. ---" << endl;
+                return;
+            }
+        }
+    }
+    
+    //si se encontró el directorio destino, movemos el nodo
+    if (destinoDir && !destinoDir->esArchivo) {
+        //verificar si ya existe un nodo con el mismo nombre en el destino
+        Node* temp = destinoDir->hijoIzq;
+        while (temp) {
+            if (temp->nombre == nodoOrigen->nombre) {
+                cout << "--- ERROR: Ya existe '" << nodoOrigen->nombre << "' en el destino. ---" << endl;
+                return;
+            }
+            temp = temp->hermanoDer;
+        }
+        
+        //desenlazar nodoOrigen de su ubicación actual
+        if (prevOrigen) {
+            prevOrigen->hermanoDer = nodoOrigen->hermanoDer;
+        } else {
+            actual->hijoIzq = nodoOrigen->hermanoDer;
+        }
+        
+        //enlazar nodoOrigen en el destino
+        nodoOrigen->hermanoDer = destinoDir->hijoIzq;
+        destinoDir->hijoIzq = nodoOrigen;
+        
+        //actualizar padre
+        nodoOrigen->padre = destinoDir;
+        
+        cout << "--- Movido: '" << origen << "' a '" << destinoDir->nombre << "' ---" << endl;
+    }
+    //si no se encontró directorio destino, asumimos renombrar
+    else {
+        //verificar que el nuevo nombre no exista
+        if (existingNode(actual, destino)) {
+            cout << "--- ERROR: Ya existe '" << destino << "' en el directorio actual. ---" << endl;
+            return;
+        }
+        
+        //renombrar
+        string nombreViejo = nodoOrigen->nombre;
+        nodoOrigen->nombre = destino;
+        cout << "--- Renombrado: '" << nombreViejo << "' -> '" << destino << "' ---" << endl;
+    }
 }
 
 //mostrar el contenido de un archivo txt
 void cat(Node* archivo) {
-    if (!archivo || !archivo->esArchivo) {
-        cerr << "--- ERROR: " << archivo->nombre << " No es un archivo válido. ---" << endl;
+    if (!archivo) {
+        cerr << "--- ERROR: Archivo no encontrado. ---" << endl;
+        return;
+    }
+    if (!archivo->esArchivo) {
+        cerr << "--- ERROR: '" << archivo->nombre << "' no es un archivo. ---" << endl;
         return;
     }
     cout << archivo->contenido << endl; 
@@ -402,21 +519,30 @@ void cat(Node* archivo) {
 
 //editar el contenido de un archivo txt
 void edit(Node* archivo) {
-    if (!archivo || !archivo->esArchivo) {
-        cerr << "--- ERROR: " << archivo->nombre << " No es un archivo válido. ---" << endl;
+    if (!archivo) {
+        cerr << "--- ERROR: Archivo no encontrado. ---" << endl;
+        return;
+    }
+    if (!archivo->esArchivo) {
+        cerr << "--- ERROR: '" << archivo->nombre << "' no es un archivo. ---" << endl;
         return;
     }
 
-    cout << "Editando " << archivo->nombre << "...\n Escribe ':end' en una línea nueva para guardar:" << endl;
+    cout << "Editando " << archivo->nombre << "...\nEscribe ':end' en una línea nueva para guardar:" << endl;
     cout << "--- Contenido actual: ---" << endl;
     cat(archivo);
+    
+    cout << "--- Escribe el nuevo contenido (línea por línea): ---" << endl;
 
-    string nuevoContenido;
+    string nuevoContenido = "";
     string linea;
+    cin.ignore();
+    
     while (true) {
         cout << "> ";
         getline(cin, linea);
         if (linea == ":end") break;
+        if (!nuevoContenido.empty()) nuevoContenido += "\n";
         nuevoContenido += linea;
     }
 
@@ -461,7 +587,6 @@ void help(){
     cout << "cd <directorio>: Navega a otro directorio." << endl;
     cout << "ls [directorio]: Lista archivos/directorios." << endl;
     cout << "mkdir <nombre>: Crea una carpeta." << endl;
-    cout << "rm <elemento>: Elimina un archivo o carpeta .txt." << endl;
     cout << "touch <archivo>: Crea un archivo .txt." << endl;
     cout << "mv <original> <destino>: Renombra o mueve archivos." << endl;
     cout << "cat <archivo>: Permite visualizar el contenido de un archivo .txt." << endl;
