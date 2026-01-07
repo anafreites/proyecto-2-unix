@@ -141,3 +141,47 @@ void archivo(Node **p) {
     }
     arch.close();
 }
+
+//funciones de la terminal
+string obtenerRuta(Node* actual) {
+    string rutaObtenida;
+    if (!actual) return "/";
+
+    string ruta;
+    Node* nodo = actual;
+
+    string partes[100];
+    int count = 0;
+
+    while (nodo != NULL && count < 100) {
+        partes[count++] = nodo->nombre;
+        nodo = nodo->padre;
+    }
+
+    for (int i = count - 1; i >= 0; --i) {
+        if (partes[i] != "/") {
+            ruta += "/" + partes[i];
+        }
+    }
+
+    if (ruta.empty()) {
+        rutaObtenida = "/"; //ruta raiz
+    } else {
+        rutaObtenida = ruta;
+    }
+    return rutaObtenida;
+}
+
+Node* buscarDirectorio(Node* actual, const string& nombre) {
+    if (!actual) return NULL;
+    
+    Node* hijo = actual->hijoIzq;
+    while (hijo != NULL) {
+        if (hijo->nombre == nombre && !hijo->esArchivo) {
+            return hijo;
+        }
+        hijo = hijo->hermanoDer;
+    }
+    return NULL;
+}
+
