@@ -585,7 +585,7 @@ void guardarEstructura(Node* raiz, const string& nombreArchivo = "file_explorer.
 void help(){
     cout << "--- Comandos disponibles: ---" << endl;
     cout << "cd <directorio>: Navega a otro directorio." << endl;
-    cout << "ls [directorio]: Lista archivos/directorios." << endl;
+    cout << "ls <directorio>a: Lista archivos/directorios." << endl;
     cout << "mkdir <nombre>: Crea una carpeta." << endl;
     cout << "touch <archivo>: Crea un archivo .txt." << endl;
     cout << "mv <original> <destino>: Renombra o mueve archivos." << endl;
