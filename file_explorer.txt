@@ -1,6 +1,8 @@
 home
-home/Documents
-home/Documents/documento.txt
+home/Downloads
+home/Downloads/hola
 home/Music
 home/Music/cancion.txt
-home/Downloads
+home/Documents
+home/Documents/documento.txt//ola que tal feliz año
+
